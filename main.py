@@ -1,48 +1,58 @@
 import os
-import google.generativeai as genai
+import threading
+from flask import Flask
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from google import genai  # Versão moderna 2026
 
+# --- 1. O "ALIBI" PARA O RENDER (FLASK) ---
+server = Flask(__name__)
 
-# --- 1. CONFIGURAÇÕES (VERIFICA SE AS TUAS CHAVES ESTÃO AQUI) ---
+@server.route('/')
+def home():
+    return "Monstro ezmny Online e a faturar."
+
+def run_flask():
+    # O Render injeta a porta nesta variável. É CRÍTICO usar 0.0.0.0
+    port = int(os.environ.get("PORT", 5000))
+    print(f"--> Flask a ouvir na porta {port}")
+    server.run(host='0.0.0.0', port=port)
+
+# --- 2. CONFIGURAÇÕES ---
 GEMINI_KEY = os.environ.get("GEMINI_KEY")
 TG_TOKEN = os.environ.get("TG_TOKEN")
 
-# Configuração do Gemini
-genai.configure(api_key=GEMINI_KEY)
+# Nova forma de ligar ao Gemini em 2026
+client = genai.Client(api_key=GEMINI_KEY)
 
-# USANDO O GEMINI 3-FLASH (O ÚLTIMO GRITO DA TUA LISTA)
-model = genai.GenerativeModel(
-    model_name="gemini-3-flash-preview", 
-    system_instruction=(
-        "Tu és o COO de uma startup de automação de clínicas."
-        "O teu tom é direto, profissional e focado em resultados."
-        "A tua missão é guiar um Engenheiro de Coimbra na execução técnica."
-        "Segue sempre esta estrutura: 1. Ação imediata (o que fazer); 2. Código/Passos; 3. Justificação (isto serve para...)."
-        "Sê visionário, foca no ROI e na escalabilidade."
-        "Não percas tempo com piadas repetitivas; foca na entrega do código."
-        "Responde em Português de Portugal, de forma curta e bruta."
-    )
-)
-
-# --- 2. LÓGICA ---
+# --- 3. LÓGICA DO BOT ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Olá João. Tas fixe p trabalhar ou ja tas todo chapadão?")
+    await update.message.reply_text("Estou online 24/7 no Render. O PC está desligado, mas eu continuo a vigiar-te.")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_text = update.message.text
     try:
-        # Usando a engine de 2026
-        response = model.generate_content(user_text)
+        # Sintaxe 2026 para o Gemini
+        response = client.models.generate_content(
+            model="gemini-2.0-flash", # Ou o 3-flash-preview que tens na lista
+            contents=update.message.text,
+            config={'system_instruction': "És o COO bruto de Coimbra. Dá passos técnicos e manda o João trabalhar."}
+        )
         await update.message.reply_text(response.text)
     except Exception as e:
-        await update.message.reply_text(f"Erro no meu cérebro 3.0: {e}")
+        await update.message.reply_text(f"Erro: {e}")
 
-# --- 3. RUN ---
+# --- 4. EXECUÇÃO ---
 if __name__ == '__main__':
+    # Primeiro: Arrancamos a Flask numa thread para o Render não dar timeout
+    t = threading.Thread(target=run_flask)
+    t.daemon = True
+    t.start()
+    
+    # Segundo: Arrancamos o Bot
+    print("--> A ligar o Telegram...")
     application = Application.builder().token(TG_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    print("COO 3.1 PRO ONLINE. VAI TRABALHAR, JOÃO.")
+    # Este comando bloqueia o código, por isso tem de ser o último
     application.run_polling()
