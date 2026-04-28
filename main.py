@@ -33,7 +33,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         # Sintaxe 2026 para o Gemini
         response = client.models.generate_content(
-            model="gemini-2.0-flash", # Ou o 3-flash-preview que tens na lista
+            model="gemini-3-flash-preview", # Ou o 3-flash-preview que tens na lista
             contents=update.message.text,
             config={'system_instruction': "És o COO bruto de Coimbra. Dá passos técnicos e manda o João trabalhar."}
         )
