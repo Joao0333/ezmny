@@ -86,12 +86,7 @@ PERSONALIDADE:
 - Nunca usas saudações fofinhas ("Olá", "Espero que estejas bem")
 - Respostas técnicas: 1. Ação Imediata  2. Código/Passos  3. Justificação
 
-DETEÇÃO DE PROMESSAS:
-Quando o utilizador fizer um compromisso claro (ex: "vou fazer X", "amanhã acabo Y"), \
-inclui OBRIGATORIAMENTE no final da resposta, numa linha isolada:
-[PROMESSA: descrição curta]
-Exemplo: [PROMESSA: Acabar o pitch das clínicas até amanhã]
-NÃO incluis [PROMESSA:] se não houver compromisso explícito.\
+Nunca incluis tags ou marcadores especiais na resposta. Responde apenas texto normal.
 """
 
 def build_system_prompt(user_id: int) -> str:
@@ -118,7 +113,7 @@ def build_system_prompt(user_id: int) -> str:
     return prompt
 
 
-async def call_gemini(contents: list, system_prompt: str) -> str:
+async def call_gemini_raw(contents: list, system_prompt: str, max_tokens: int = 1024) -> str:
     """Chama Gemini com retry exponencial em caso de 429."""
     for attempt in range(3):
         try:
@@ -127,7 +122,7 @@ async def call_gemini(contents: list, system_prompt: str) -> str:
                 contents=contents,
                 config=types.GenerateContentConfig(
                     system_instruction=system_prompt,
-                    max_output_tokens=1024,
+                    max_output_tokens=max_tokens,
                 ),
             )
             return response.text
@@ -146,14 +141,35 @@ async def call_gemini(contents: list, system_prompt: str) -> str:
     return "⚠️ API indisponível. Vai trabalhar sem mim por agora."
 
 
-def extract_and_clean_promise(reply: str) -> tuple[str | None, str]:
-    """Extrai [PROMESSA: ...] do reply e limpa o texto."""
-    match = re.search(r"\[PROMESSA:\s*(.+?)\]", reply, re.IGNORECASE)
-    if match:
-        promise = match.group(1).strip()
-        clean = re.sub(r"\[PROMESSA:\s*.+?\]", "", reply, flags=re.IGNORECASE).strip()
-        return promise, clean
-    return None, reply
+async def call_gemini(contents: list, system_prompt: str) -> str:
+    return await call_gemini_raw(contents, system_prompt, max_tokens=1024)
+
+
+async def detect_promise(user_text: str) -> str | None:
+    """
+    Chamada dedicada e leve para detetar se o utilizador fez uma promessa.
+    Retorna o texto da promessa ou None.
+    """
+    prompt = (
+        "Analisa a mensagem abaixo. "
+        "Se o utilizador estiver a fazer um compromisso claro sobre uma ação futura "
+        "(ex: 'vou fazer X', 'amanhã acabo Y', 'prometo Z', 'esta semana trato de...'), "
+        "responde APENAS com: PROMESSA: <descrição curta em português>\n"
+        "Se NÃO houver compromisso claro, responde apenas: NAO\n"
+        "Não acrescentes mais nada."
+    )
+    try:
+        result = await call_gemini_raw(
+            [{"role": "user", "parts": [{"text": user_text}]}],
+            system_prompt=prompt,
+            max_tokens=60,
+        )
+        result = result.strip()
+        if result.upper().startswith("PROMESSA:"):
+            return result[len("PROMESSA:"):].strip()
+    except Exception as e:
+        logger.warning(f"detect_promise error: {e}")
+    return None
 
 
 # ── HANDLERS ────────────────────────────────────────────────────────────────
@@ -204,18 +220,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Prompt dinâmico
     system_prompt = build_system_prompt(user_id)
 
-    # Chamar Gemini
-    reply = await call_gemini(contents, system_prompt)
+    # Chamar Gemini (resposta principal) e detetar promessa em paralelo
+    reply, promise = await asyncio.gather(
+        call_gemini(contents, system_prompt),
+        detect_promise(user_text),
+    )
 
-    # Detetar promessa
-    promise, clean_reply = extract_and_clean_promise(reply)
     if promise:
         save_promise(user_id, promise)
-        clean_reply += f"\n\n✅ *Promessa registada:* _{promise}_"
+        reply += f"\n\n✅ *Promessa registada:* _{promise}_"
+        logger.info(f"Promessa detetada e guardada: {promise}")
 
-    save_message(user_id, "assistant", clean_reply)
+    save_message(user_id, "assistant", reply)
 
-    await update.message.reply_text(clean_reply, parse_mode="Markdown")
+    await update.message.reply_text(reply, parse_mode="Markdown")
 
 
 async def cmd_promises(update: Update, context: ContextTypes.DEFAULT_TYPE):
