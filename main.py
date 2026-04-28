@@ -1,11 +1,12 @@
 import google.generativeai as genai
+import os
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 
 # --- 1. CONFIGURAÇÕES (VERIFICA SE AS TUAS CHAVES ESTÃO AQUI) ---
-GEMINI_KEY = "AIzaSyAT4Dyp8MjSDq__w2hSHRI6UrY7KHri6s0"
-TG_TOKEN = "8521415264:AAEk2QN0qjhB4fqVq0yMf90jQOwG7ncX-kU"
+GEMINI_KEY = os.environ.get("GEMINI_KEY")
+TG_TOKEN = os.environ.get("TG_TOKEN")
 
 # Configuração do Gemini
 genai.configure(api_key=GEMINI_KEY)
