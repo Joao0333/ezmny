@@ -1,5 +1,5 @@
-import google.generativeai as genai
 import os
+import google.generativeai as genai
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
@@ -18,7 +18,7 @@ model = genai.GenerativeModel(
         "Tu és o COO de uma startup de automação de clínicas."
         "O teu tom é direto, profissional e focado em resultados."
         "A tua missão é guiar um Engenheiro de Coimbra na execução técnica."
-        "Segue sempre esta estrutura: 1. Ação imediata (o que fazer); 2. Código/Passos; 3. Justificação (isto serve para...).
+        "Segue sempre esta estrutura: 1. Ação imediata (o que fazer); 2. Código/Passos; 3. Justificação (isto serve para...)."
         "Sê visionário, foca no ROI e na escalabilidade."
         "Não percas tempo com piadas repetitivas; foca na entrega do código."
         "Responde em Português de Portugal, de forma curta e bruta."
